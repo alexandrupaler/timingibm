@@ -19,7 +19,7 @@ def get_maximum_gf():
 
 
 
-def compute_cnot_time():
+def compute_cnot_time(filtered_cnots):
     # From: https://github.com/Qiskit/ibmq-device-information/tree/master/backends/melbourne/V1
     # A frame change (FC) is equivalent to applying a virtual Z-gate in software,
     # where Z(θ)=FC(-θ). Gaussian derivative (GD) and Gaussian flattop (GF) pulses
@@ -31,14 +31,19 @@ def compute_cnot_time():
     GD = 100
     # see https://github.com/Qiskit/ibmq-device-information/blob/master/backends/melbourne/V1/version_log.md
     # I copy pasted from there in the following file
-    GF = select_value(min, "ibmq_16_times.txt", name=0, val=1, skip_first_line=False)[1]
+    cnot, GF = select_value(max, "ibmq_16_times.txt",
+                            name=0, val=1,
+                            skip_first_line=False,
+                            keys_from_list=filtered_cnots)
+
+    print("->", cnot, GF)
     #
     time = GD + buffer + GF + buffer + GD + buffer + GF + buffer
 
-    return time
+    return cnot, time
 
 
-def select_value(function_cmp, csv_file_name, name = 0, val = 1, skip_first_line = True):
+def select_value(function_cmp, csv_file_name, name = 0, val = 1, skip_first_line = True, keys_from_list=None):
     values = [-1, 100000]
 
     value = [item for item in values if item not in [function_cmp(values)]][0]
@@ -53,6 +58,12 @@ def select_value(function_cmp, csv_file_name, name = 0, val = 1, skip_first_line
 
         # T1 is second column
         for row in csvreader:
+
+            # skip the keys which are not allowed
+            if keys_from_list is not None:
+                if row[name] not in keys_from_list:
+                    continue
+
             curr_value = float(row[val])
             value = function_cmp(value, curr_value)
 
@@ -76,11 +87,14 @@ def create_circuit(run_sequential_experiment = False, nr_layers = 1, list_of_cno
         for i in range(nr_layers):
             qs = list_of_cnots[0].replace("CX", "").split("_")
             qc.cx(qr[int(qs[0])], qr[int(qs[1])])
+            qc.barrier()
     else:
         for i in range(nr_layers):
             for gate in list_of_cnots:
                 qs = gate.replace("CX", "").split("_")
                 qc.cx(qr[int(qs[0])], qr[int(qs[1])])
+                # qc.barrier()
+            qc.barrier()
 
     qc.barrier()
     qc.measure(qr[int(t1_qubit)], cr[0])
@@ -91,7 +105,7 @@ def create_circuit(run_sequential_experiment = False, nr_layers = 1, list_of_cno
 def run_on_ibm(q_circuit):
     backend = IBMQ.get_provider(hub='ibm-q', group='open', project='main').backends(name='ibmq_16_melbourne')[0]
     # backend = IBMQ.get_provider(hub='ibm-q', group='open', project='main').backends(name='ibmq_qasm_simulator')[0]
-    qobj = qiskit.transpile(q_circuit, backend)
+    qobj = qiskit.transpile(q_circuit, backend, optimization_level=0)
     #
     job = execute(qobj, backend=backend, shots=8192)
 
@@ -114,15 +128,7 @@ IBMQ.enable_account(
 qubit, t1_time = select_value(min, "ibmq_16_melbourne.csv", name=0, val=1)
 # microseconds to nanoseconds
 t1_time *= 1000
-t1_time = t1_time
-print(qubit, t1_time)
-
-
-"""
-Maximum duration of a CNOT
-"""
-max_cx_time = compute_cnot_time()
-print(max_cx_time)
+print("qubit, t1_time", qubit, t1_time)
 
 """
 Create the list of CNOTs from a layer
@@ -138,26 +144,34 @@ for gate in parallel_cnots:
     if qubit not in qubits:
         filtered_cnots.append(gate)
 
+
+"""
+Maximum duration of a CNOT
+"""
+selected_cnot, max_cx_time = compute_cnot_time(filtered_cnots)
+print("cnot time", max_cx_time)
+
 cnots_in_a_layer = len(filtered_cnots)
 print(filtered_cnots)
 
-# when things go strang, multiply with a factor
-factor = 1
+# when things go strange, multiply with a factor
+factor = 2.0
 
 # how many sequential cx gates are min to achieve t1_time?
 # assuming that all gates in a layer have the longest cx_time
 # Thus, after ratio layers the state of qubit for which T1 is considered should be |0>
-nr_seq_cx = round(t1_time / max_cx_time) * factor
+nr_seq_cx = round((t1_time * factor)/ max_cx_time)
+print(nr_seq_cx)
 qc_seq = create_circuit(run_sequential_experiment=True,
                         nr_layers = nr_seq_cx,
-                        list_of_cnots = [filtered_cnots[0]],
+                        list_of_cnots = [selected_cnot],
                         t1_qubit=qubit)
 # print(qc_seq)
 res_seq = run_on_ibm(qc_seq)
 print(' --- SEQ')
 print(res_seq)
 
-# I am placing the sequential CX in layers of parallel gates
+# I am placing the sequential CX in layers of gates which I assume are executed in parallel
 # If the gates within the layer are executed in parallel then
 # the state of the T1 qubit should be prob < 1 in a state diff from |0>
 # otherwise with prob almost one the qubit is in state |0>
@@ -172,7 +186,15 @@ res_par = run_on_ibm(qc_par)
 print(' --- PAR')
 print(res_par)
 
-with open("res.txt", "w") as f:
+with open("res_{}.txt".format(time.asctime()), "w") as f:
+    f.write("qubit {}, t1_time {}\n".format(qubit, t1_time))
+    f.write("cnot time {}\n".format(max_cx_time))
+    f.write('\n')
     f.write(str(res_seq))
     f.write('\n')
     f.write(str(res_par))
+    for i in range(10):
+        f.write('\n')
+    f.write('# the code for this experiment is below\n')
+    with open("main.py") as src:
+        f.writelines(src.readlines())
