@@ -4,6 +4,8 @@ import csv
 import qiskit
 
 from qiskit import IBMQ, execute
+from qiskit.visualization import circuit_drawer
+
 from qiskit.compiler import transpile
 from qiskit.providers.jobstatus import JOB_FINAL_STATES
 
@@ -155,7 +157,7 @@ cnots_in_a_layer = len(filtered_cnots)
 print(filtered_cnots)
 
 # when things go strange, multiply with a factor
-factor = 2.0
+factor = 1
 
 # how many sequential cx gates are min to achieve t1_time?
 # assuming that all gates in a layer have the longest cx_time
@@ -166,10 +168,11 @@ qc_seq = create_circuit(run_sequential_experiment=True,
                         nr_layers = nr_seq_cx,
                         list_of_cnots = [selected_cnot],
                         t1_qubit=qubit)
+print(circuit_drawer(qc_seq, line_length=-1))
 # print(qc_seq)
-res_seq = run_on_ibm(qc_seq)
-print(' --- SEQ')
-print(res_seq)
+# res_seq = run_on_ibm(qc_seq)
+# print(' --- SEQ')
+# print(res_seq)
 
 # I am placing the sequential CX in layers of gates which I assume are executed in parallel
 # If the gates within the layer are executed in parallel then
@@ -181,20 +184,21 @@ qc_par = create_circuit(run_sequential_experiment=False,
                         nr_layers = nr_seq_cx,
                         list_of_cnots = filtered_cnots,
                         t1_qubit=qubit)
+print(circuit_drawer(qc_par, line_length=-1))
 # print(qc_par)
-res_par = run_on_ibm(qc_par)
-print(' --- PAR')
-print(res_par)
+# res_par = run_on_ibm(qc_par)
+# print(' --- PAR')
+# print(res_par)
 
-with open("res_{}.txt".format(time.asctime()), "w") as f:
-    f.write("qubit {}, t1_time {}\n".format(qubit, t1_time))
-    f.write("cnot time {}\n".format(max_cx_time))
-    f.write('\n')
-    f.write(str(res_seq))
-    f.write('\n')
-    f.write(str(res_par))
-    for i in range(10):
-        f.write('\n')
-    f.write('# the code for this experiment is below\n')
-    with open("main.py") as src:
-        f.writelines(src.readlines())
+# with open("res_{}.txt".format(time.asctime()), "w") as f:
+#     f.write("qubit {}, t1_time {}\n".format(qubit, t1_time))
+#     f.write("cnot time {}\n".format(max_cx_time))
+#     f.write('\n')
+#     f.write(str(res_seq))
+#     f.write('\n')
+#     f.write(str(res_par))
+#     for i in range(10):
+#         f.write('\n')
+#     f.write('# the code for this experiment is below\n')
+#     with open("main.py") as src:
+#         f.writelines(src.readlines())
