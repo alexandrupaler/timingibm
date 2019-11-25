@@ -103,7 +103,7 @@ def create_circuit_one(run_sequential_experiment = False, nr_layers = 1, list_of
 
     return qc
 
-def create_circuit_two(run_sequential_experiment = False, list_of_cnots = []):
+def create_circuit_one_create(run_sequential_experiment = False, list_of_cnots = []):
     qr = qiskit.QuantumRegister(14)
     cr = qiskit.ClassicalRegister(14)
     qc = qiskit.QuantumCircuit(qr, cr)
@@ -128,10 +128,10 @@ def create_circuit_two(run_sequential_experiment = False, list_of_cnots = []):
     return qc
 
 
-def create_circuit_three(nr_layers = 1):
+def create_circuit_one_decay(nr_layers = 1, circuit_name = None):
     qr = qiskit.QuantumRegister(14)
     cr = qiskit.ClassicalRegister(14)
-    qc = qiskit.QuantumCircuit(qr, cr)
+    qc = qiskit.QuantumCircuit(qr, cr, name = circuit_name)
 
     clocks = [0, 1]
     for q in clocks:
@@ -159,9 +159,125 @@ def create_circuit_three(nr_layers = 1):
 
     return qc
 
+def create_circuit_plus_decay(nr_layers = 1, circuit_name = None):
+    qr = qiskit.QuantumRegister(14)
+    cr = qiskit.ClassicalRegister(14)
+    qc = qiskit.QuantumCircuit(qr, cr, name = circuit_name)
+
+    clocks = [0, 1]
+    for q in clocks:
+        qc.x(qr[q])
+    qc.barrier()
+
+    ones = []
+    for x in range(14):
+        if x not in clocks:
+            ones.append(x)
+
+    # Construct the logical_+ state
+    # qc.h(qr[ones[0]])
+    # for q in range(1, len(ones)):
+    #     qc.cx(qr[ones[0]], qr[ones[q]])
+    # qc.barrier()
+
+    qc.h(qr[13])
+    qc.cx(qr[13], qr[12])
+    qc.cx(qr[12], qr[2])
+    qc.cx(qr[2], qr[3])
+
+    qc.h(qr[3])
+    qc.h(qr[4])
+    qc.h(qr[11])
+
+    qc.cx(qr[4], qr[3])
+    qc.cx(qr[11], qr[3])
+
+    qc.h(qr[11])
+
+    qc.h(qr[5])
+    qc.cx(qr[5], qr[4])
+    qc.h(qr[5])
+
+    qc.h(qr[4])
+    qc.h(qr[3])
+    # |13 12 2 3 4 11 5>
+    # mask = [0, 1] + unused
+    # mask = [0, 1, 6, 7, 8, 9, 10]
+
+
+    # qc.cx(qr[11], qr[10])
+    # qc.cx(qr[5], qr[9])
+    # qc.cx(qr[5], qr[6])
+    # qc.cx(qr[6], qr[8])
+    #
+    # qc.h(qr[8])
+    # qc.h(qr[7])
+    # qc.cx(qr[7], qr[8])
+    # qc.h(qr[8])
+    # qc.h(qr[7])
+
+    qc.barrier()
+
+
+    for i in range(nr_layers):
+        # Let the qubits do nothing
+        qc.cx(qr[1], qr[0])
+        qc.barrier()
+
+    qc.barrier()
+
+    # # Destruct the logical_+ state
+    # for q in range(1, len(ones)):
+    #     qc.cx(qr[ones[0]], qr[ones[q]])
+    # qc.h(qr[ones[0]])
+    #
+    # qc.barrier()
+
+    # qc.h(qr[8])
+    # qc.h(qr[7])
+    # qc.cx(qr[7], qr[8])
+    # qc.h(qr[8])
+    # qc.h(qr[7])
+    #
+    # qc.cx(qr[6], qr[8])
+    # qc.cx(qr[5], qr[6])
+    # qc.cx(qr[5], qr[9])
+    # qc.cx(qr[11], qr[10])
+    #
+    qc.h(qr[5])
+
+    qc.h(qr[4])
+    qc.h(qr[3])
+    qc.cx(qr[5], qr[4])
+
+    qc.h(qr[11])
+
+    qc.h(qr[5])
+
+    qc.cx(qr[11], qr[3])
+    qc.cx(qr[4], qr[3])
+
+    qc.h(qr[3])
+    qc.h(qr[4])
+    qc.h(qr[11])
+
+    qc.cx(qr[2], qr[3])
+    qc.cx(qr[12], qr[2])
+    qc.cx(qr[13], qr[12])
+
+    qc.h(qr[13])
+
+    qc.barrier()
+
+
+    for i in range(2, 14):
+        qc.measure(qr[i], cr[i])
+
+    return qc
+
 def run_on_ibm(q_circuit, backend):
     """
-        I am setting optimzation_level=0 in the hope that gates are not decomposed or optimised between any pair of barriers
+        I am setting optimization_level=0 in the hope that gates are not decomposed or optimised between any pair of barriers
     """
     qobj = qiskit.transpile(q_circuit, backend, optimization_level=0)
     #
@@ -177,7 +293,7 @@ def run_on_ibm(q_circuit, backend):
 
     return job.result()
 
-def experiment_two(back_ibm, back_sim):
+def experiment_one_state_create(back_ibm, back_sim):
     """
     The goal of this experiment is to investigate if the same set of CNOTs introduces
     more errors when executed in parallel or sequentially.
@@ -207,8 +323,8 @@ def experiment_two(back_ibm, back_sim):
 
     parallel_cnots = ['CX13_1', 'CX12_2', 'CX11_3', 'CX4_10', 'CX5_9', 'CX6_8']
 
-    qc_seq = create_circuit_two(run_sequential_experiment=True,
-                                list_of_cnots=parallel_cnots)
+    qc_seq = create_circuit_one_create(run_sequential_experiment=True,
+                                       list_of_cnots=parallel_cnots)
 
     #
     res_seqs = run_on_ibm(qc_seq, back_sim)
@@ -219,8 +335,8 @@ def experiment_two(back_ibm, back_sim):
     print(' --- SEQ')
     print(res_seq.to_dict())
 
-    qc_par = create_circuit_two(run_sequential_experiment=False,
-                                list_of_cnots=parallel_cnots)
+    qc_par = create_circuit_one_create(run_sequential_experiment=False,
+                                       list_of_cnots=parallel_cnots)
     res_par = run_on_ibm(qc_par, back_ibm)
     print(' --- PAR')
     print(res_par.to_dict())
@@ -229,7 +345,7 @@ def experiment_two(back_ibm, back_sim):
     print(circuit_drawer(qc_seq, line_length=-1))
     print(circuit_drawer(qc_par, line_length=-1))
 
-def experiment_three(back_ibm, back_sim):
+def experiment_one_state_decay(back_ibm, back_sim):
     """
         Create a circuit with variable number of layers that do nothing
         In order to not perform any operation, but also to speed up the experiment
@@ -249,18 +365,86 @@ def experiment_three(back_ibm, back_sim):
             distance 6 or higher errors?"
     """
 
-    qc_seq = create_circuit_three(nr_layers=1)
+    qc_seq = create_circuit_one_decay(nr_layers=1)
+    # res_seqs = run_on_ibm(qc_seq, back_sim)
+    # print(' --- SIM')
+    # print(res_seqs.to_dict())
+    #
+    # for i in range(1, 11):
+    #     qc_seq = create_circuit_one_decay(nr_layers=i * 2)
+    #     res_seqs = run_on_ibm(qc_seq, back_ibm)
+    #     print(' --- LAY{}'.format(2 * i))
+    #     print(res_seqs.to_dict())
+    #
+    # print(circuit_drawer(qc_seq, line_length=-1))
+
     res_seqs = run_on_ibm(qc_seq, back_sim)
     print(' --- SIM')
     print(res_seqs.to_dict())
 
-    for i in range(1, 11):
-        qc_seq = create_circuit_three(nr_layers=i * 2)
-        res_seqs = run_on_ibm(qc_seq, back_ibm)
-        print(' --- LAY{}'.format(2 * i))
-        print(res_seqs.to_dict())
+    print(' --- HRD')
+
+    qc_seqs = []
+    for i in range(1, 10):
+        nr_layers = 2 * i
+        cname = " --- LAY_{}".format(nr_layers)
+        qc_seq = create_circuit_one_decay(nr_layers=nr_layers,
+                                           circuit_name=cname)
+        qc_seqs.append(qc_seq)
+        # res_seqs = run_on_ibm(qc_seq, back_ibm)
+
+    res_seqs = run_on_ibm(qc_seqs, back_ibm)
+    print(res_seqs.to_dict())
 
     print(circuit_drawer(qc_seq, line_length=-1))
+
+
+
+def experiment_plus_state_decay(back_ibm, back_sim):
+        """
+            Create a circuit with variable number of layers that do nothing
+            In order to not perform any operation, but also to speed up the experiment
+            two qubits are chosen to perform CNOT sequentially between barriers
+            Each circuit layer has the duration of the CNOT between those qubits
+
+            The question asked by this sequence of experiments is:
+                "How long does it take until the logical |1> state on all the other qubits
+                becomes a logical |0> state?"
+
+            There are 12 qubits in the codeword, thus the question is:
+
+                "How does the probability of distance less than 5 errors depend with the number
+                CNOT layers in the circuit?"
+
+                "In terms of CNOT times: how long does it take until the codeword is affected beyond recognition by
+                distance 6 or higher errors?"
+        """
+
+        qc_seq = create_circuit_plus_decay(nr_layers = 1,
+                                           circuit_name = "simulation")
+        res_seqs = run_on_ibm(qc_seq, back_sim)
+        print(' --- SIM')
+        print(res_seqs.to_dict())
+
+        print(' --- HRD')
+
+        qc_seqs = []
+        for i in range(1, 10):
+            # short with long times
+            # nr_layers = 30 * i
+            # long with short times
+            nr_layers = 2 * i
+            cname = " --- LAY_{}".format(nr_layers)
+
+            qc_seq = create_circuit_plus_decay(nr_layers = nr_layers,
+                                               circuit_name = cname)
+            qc_seqs.append(qc_seq)
+            # res_seqs = run_on_ibm(qc_seq, back_ibm)
+
+        res_seqs = run_on_ibm(qc_seqs, back_ibm)
+        print(res_seqs.to_dict())
+
+        print(circuit_drawer(qc_seq, line_length=-1))
 
 def main():
 
@@ -272,7 +456,9 @@ def main():
     back_ibm = IBMQ.get_provider(hub='ibm-q', group='open', project='main').backends(name='ibmq_16_melbourne')[0]
     back_sim = IBMQ.get_provider(hub='ibm-q', group='open', project='main').backends(name='ibmq_qasm_simulator')[0]
 
-    experiment_three(back_ibm, back_sim)
+    experiment_plus_state_decay(back_ibm, back_sim)
+
+    # experiment_one_state_decay(back_ibm, back_sim)
 
     # qubit, t1_time = select_value(min, "ibmq_16_melbourne.csv", name=0, val=1)
     # # microseconds to nanoseconds

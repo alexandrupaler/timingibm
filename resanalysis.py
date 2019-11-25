@@ -141,42 +141,66 @@ def get_distance_keys(original, max_dist, ignore_qubits=[]):
 def main():
     total_res = {}
 
-    fname = "res_Tue Sep 24 14:55:10 2019.txt.experiment_two"
+    """
+        ONE CONSTRUCT
+    """
+    # fname = "res_Tue Sep 24 14:55:10 2019.txt.experiment_two"
+    # mask_qubits = [0, 7]
+
+    """
+        ONE DECAY
+    """
+    # fname = "res_Tue Sep 24 22:00:36 2019.txt"
+    # mask_qubits = [0, 1]
+
+    fname = "res_Mon Nov 25 00:50:09 2019.txt_1111_experiment"
+    mask_qubits = [0, 7]
+
+    """
+        PLUS DECAY
+    """
+    # short ghz
+    # fname = "res_Mon Nov 25 00:36:47 2019.txt_long_waiting_times"
+    # mask_qubits = [0, 1, 6, 7, 8, 9, 10]
+    # large ghz
+    # fname = "res_Mon Nov 25 00:36:47 2019.txt_long_waiting_times"
+    # mask_qubits = [0, 1]
 
     # 0b11111101111110
     # bits 0 and 7 are ZERO
     # all other bits are ONE
+    # the perfect result will be read from the specified file
     perfect_result = 0x3F7E
-    mask_qubits = [0, 7]
 
     with open(fname, "r") as file:
         readnext = False
         resname = ""
 
         for line in file:
-            if readnext:
-                readnext = False
+
+            if line.startswith(" ---"):
+                resname = line.replace(" ---", "").strip()
+
+            if line.startswith("{"):
                 dict = eval(line)
                 res = Result.from_dict(dict)
 
-                expcounts = {}
-                dict = res.results[0].data.counts.to_dict()
-                for key in dict.keys():
-                    expcounts[int(key, 16)] = dict[key]
+                for j in range(len(res.results)):
+                    expcounts = {}
+                    dict = res.results[j].data.counts.to_dict()
+                    for key in dict.keys():
+                        expcounts[int(key, 16)] = dict[key]
 
-                if resname == "SIM":
-                    # this is the perfect basis vector from the simulator
-                    perfect_result = list(expcounts.keys())[0]
-                    print("the perfect result is", perfect_result, hex(perfect_result))
-                    print_state(perfect_result, mask_qubits=mask_qubits)
+                    if resname == "SIM":
+                        # this is the perfect basis vector from the simulator
+                        perfect_result = list(expcounts.keys())[0]
+                        print("the perfect result is", perfect_result, hex(perfect_result))
+                        print_state(perfect_result, mask_qubits=mask_qubits)
 
-                append_result(total_res, resname, expcounts)
+                    circ_name = res.results[j].header.name
+                    append_result(total_res, resname + circ_name, expcounts)
 
-            if line.startswith(" ---"):
-                readnext = True
-                resname = line.replace(" ---", "").strip()
-
-    dists = get_distance_keys(perfect_result, 6, ignore_qubits=mask_qubits)
+    dists = get_distance_keys(perfect_result, 3, ignore_qubits=mask_qubits)
     analysis_results(total_res, dists, mask_qubits=mask_qubits)
 
     # create_plot(total_res)
